@@ -1,10 +1,16 @@
 import sys
+import argparse
 from board_io import parse_board
 from solver import solve
 from visualizer import run_visualizer
 
 def main():
-    question_num = sys.argv[1] if len(sys.argv) > 1 else "01"
+    parser = argparse.ArgumentParser(description="Asteroid Escape Solver")
+    parser.add_argument("problem_id", nargs="?", default="01", help="ID of the level to solve (e.g. 01)")
+    parser.add_argument("--autoplay", action="store_true", help="Start the visualizer in auto-play mode")
+    
+    args = parser.parse_args()
+    question_num = args.problem_id
     
     try:
         print(f"Loading challenge {question_num}...")
@@ -17,16 +23,18 @@ def main():
         return
 
     print("Searching for shortest solution...")
-    solution = solve(initial_state)
+    solution, visited_count, duration = solve(initial_state)
 
     if solution is None:
-        print("No solution found for this challenge.")
+        print(f"No solution found for this challenge. (Visited {visited_count} states in {duration:.4f}s)")
         # Open UI anyway to show the initial state
-        run_visualizer(initial_state, None)
+        run_visualizer(initial_state, None, autoplay=False)
     else:
         print(f"Found solution in {len(solution)} moves.")
+        print(f"States visited: {visited_count}")
+        print(f"Search time: {duration:.4f}s")
         print("Opening visualizer...")
-        run_visualizer(initial_state, solution)
+        run_visualizer(initial_state, solution, autoplay=args.autoplay)
 
 if __name__ == "__main__":
     main()

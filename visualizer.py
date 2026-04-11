@@ -166,7 +166,7 @@ def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
     for pid, cur_cj, cur_ci in piece_draw_data:
         draw_piece(screen, state, pid, cur_cj, cur_ci)
 
-def run_visualizer(initial_state, solution):
+def run_visualizer(initial_state, solution, autoplay=False):
     pygame.init()
     W_S = sum(UNIT_SIZES) + MARGIN * 2
     screen = pygame.display.set_mode((W_S, W_S + 40))
@@ -181,7 +181,7 @@ def run_visualizer(initial_state, solution):
     running = True
     step_idx = 0
     anim_start_time = time.time()
-    paused = True 
+    paused = not autoplay
     single_step = False
     while running:
         is_final_state = (step_idx == len(move_steps) - 1)
