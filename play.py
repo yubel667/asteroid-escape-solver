@@ -91,7 +91,7 @@ def main():
                             hint_msg = "Solver Failed!"
                             hint_msg_time = now
                 elif not is_animating and not current_state.is_solved() and not solve_proc:
-                    # 1. Special case: ship exit prioritization
+                    # 1. Special case: ship exit prioritization (VALID move only here)
                     ship_pos = None
                     for tj in range(3):
                         for ti in range(3):
@@ -107,15 +107,9 @@ def main():
                             is_animating = True
                             is_illegal_anim = False
                             cached_solution = []
-                        else:
-                            # Illegal exit attempt towards the exit
-                            move_info = ((2, 1), (3, 1))
-                            anim_start_time = now
-                            is_animating = True
-                            is_illegal_anim = True
                     
                     if not is_animating:
-                        # 2. Normal move towards empty spot
+                        # 2. Normal move towards empty spot (Valid or Illegal)
                         ej, ei = current_state.get_empty_pos()
                         from_pos = None
                         to_pos = (ej, ei)
@@ -148,6 +142,13 @@ def main():
                                         anim_start_time = now
                                         is_animating = True
                                         is_illegal_anim = True
+                    
+                    if not is_animating and ship_pos == (2, 1) and event.key == pygame.K_DOWN:
+                        # 3. If no other move was possible, show illegal exit attempt for ship
+                        move_info = ((2, 1), (3, 1))
+                        anim_start_time = now
+                        is_animating = True
+                        is_illegal_anim = True
 
         if solve_proc:
             if solve_proc.poll() is not None:
