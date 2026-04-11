@@ -50,6 +50,26 @@ Can also be run directly for a CLI-only solution output (no GUI).
 python3 solver.py [problem_id]
 ```
 
+## Interactive Play
+
+### `play.py`
+Allows you to manually play through a level.
+
+**Usage:**
+```bash
+python3 play.py [level_id]
+```
+
+**Controls:**
+- **Arrow Keys:** Move pieces adjacent to the empty spot.
+- **'R' Key:** Reset the level to its initial state.
+- **'ESC' Key:** Quit the player.
+
+**Mechanics:**
+- If a move is legal, the piece slides to the new position.
+- If a move is illegal but towards the empty space, the piece performs a "bump" animation (slides 20% and returns).
+- Other directions are ignored.
+
 ## Level Editor
 
 ### `level_editor.py`
