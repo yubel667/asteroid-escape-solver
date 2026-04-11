@@ -71,6 +71,10 @@ def draw_piece(screen, state, pid, pix_cj, pix_ci, scale=1.0):
                 dx = (sc_m/2 + sc_c/2) if cell.x == 1 else -(sc_m/2 + sc_c/2) if cell.x == -1 else (sc_m/2 + sc_c + sc_c/2) if cell.x == 2 else -(sc_m/2 + sc_c + sc_c/2) if cell.x == -2 else 0
                 sum_dy, sum_dx = sum_dy + dy, sum_dx + dx
             avg_cy, avg_cx = pix_cj + sum_dy / len(piece.cells), pix_ci + sum_dx / len(piece.cells)
+            # average further towards center
+            DRAG = 0.3
+            avg_cy = pix_cj * DRAG + avg_cy * (1 - DRAG)
+            avg_cx = pix_ci * DRAG + avg_cx * (1 - DRAG)
             radius = sc_c * 0.9
             pygame.draw.circle(screen, color, (int(avg_cx), int(avg_cy)), int(radius))
             pygame.draw.circle(screen, (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30)), (int(avg_cx), int(avg_cy)), int(radius), max(1, int(3*scale)))
