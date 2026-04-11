@@ -74,7 +74,7 @@ def build_pieces():
         pieces.append(piece)
         piece = piece.rotate()
     # big astroid at edge
-    piece = Piece(5, [Loc(-1, -1), Loc(-1, 1), Loc(-2, -1), Loc(-2,1)], 0, "AA  ")
+    piece = Piece(5, [Loc(-1, -1), Loc(-1, 0), Loc(-1, 1), Loc(-2, -1), Loc(-2, 0), Loc(-2,1)], 0, "AA  ")
     for i in range(4):
         pieces.append(piece)
         piece = piece.rotate()
