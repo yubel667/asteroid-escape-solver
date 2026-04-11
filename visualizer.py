@@ -166,10 +166,10 @@ def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
     for pid, cur_cj, cur_ci in piece_draw_data:
         draw_piece(screen, state, pid, cur_cj, cur_ci)
 
-def run_visualizer(initial_state, solution, autoplay=False):
+def run_visualizer(initial_state, solution, autoplay=False, show_controls=True):
     pygame.init()
     W_S = sum(UNIT_SIZES) + MARGIN * 2
-    screen = pygame.display.set_mode((W_S, W_S + 40))
+    screen = pygame.display.set_mode((W_S, W_S + (140 if show_controls else 40)))
     pygame.display.set_caption("Asteroid Escape Solver")
     move_steps = []
     curr = initial_state
@@ -235,6 +235,20 @@ def run_visualizer(initial_state, solution, autoplay=False):
         if paused: status += " (PAUSED)"
         img = font.render(status, True, (200, 200, 200))
         screen.blit(img, (MARGIN, W_S + 10))
+        
+        if show_controls:
+            ctrl_font = pygame.font.SysFont(None, 20)
+            controls = [
+                "ENTER: Toggle Auto-play",
+                "SPACE: Animate next step",
+                "RIGHT/LEFT: Jump next/prev",
+                "R: Reset to start",
+                "SPACE/ENTER (on SOLVED): Exit"
+            ]
+            for i, line in enumerate(controls):
+                c_img = ctrl_font.render(line, True, (120, 130, 150))
+                screen.blit(c_img, (MARGIN, W_S + 40 + i * 18))
+
         pygame.display.flip()
         pygame.time.Clock().tick(60)
     pygame.quit()

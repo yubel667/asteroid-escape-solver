@@ -147,6 +147,7 @@ class LevelEditor:
                         success, msg = self.save()
                         status_override = msg
                         if success: save_success_time = time.time()
+                    elif event.key == pygame.K_ESCAPE: return
             if save_success_time and time.time() - save_success_time > 1.0: return
             vis.draw_board_chrome(screen)
             pygame.draw.rect(screen, (25, 28, 38), (EDITOR_WIDTH, 0, SIDEBAR_WIDTH, WINDOW_HEIGHT))
@@ -178,6 +179,13 @@ class LevelEditor:
                 pygame.draw.rect(screen, bg_c, (bx, by, bw, bh), 0, int(12*sc))
                 if sc == 1.0: pygame.draw.rect(screen, (max(0, bg_c[0]-10), max(0, bg_c[1]-10), max(0, bg_c[2]-10)), (bx, by, bw, bh), 2, 12)
             for p_idx, cj, ci, sc in piece_draw_queue: vis.draw_piece(screen, None, p_idx, cj, ci, scale=sc)
+            
+            # Helper text
+            ctrl_font = pygame.font.SysFont(None, 20)
+            instructions = [f"ID: {self.problem_id}", "S: Save & Exit", "R: Rotate (dragging)", "Left Click: Drag", "Right Click: Remove", "ESC: Quit"]
+            for i, line in enumerate(instructions):
+                screen.blit(ctrl_font.render(line, True, (150, 160, 180)), (EDITOR_WIDTH + 20, WINDOW_HEIGHT - 150 + i * 18))
+
             if status_override:
                 msg, color = status_override, ((0, 255, 120) if "Saved" in status_override else (255, 100, 100))
             else:
