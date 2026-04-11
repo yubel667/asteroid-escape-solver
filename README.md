@@ -62,6 +62,7 @@ python3 play.py [level_id]
 
 **Controls:**
 - **Arrow Keys:** Move pieces adjacent to the empty spot.
+- **'H' Key:** Hint - automatically calculates and executes the next optimal move.
 - **'R' Key:** Reset the level to its initial state.
 - **'ESC' Key:** Quit the player.
 

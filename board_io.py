@@ -5,7 +5,11 @@ from board import BoardState, BoardSetup, PIECES
 
 def parse_board(question_number: str) -> BoardState:
     with open(f"questions/{question_number}.txt", "r") as f:
-        lines = f.read().splitlines()
+        content = f.read()
+    return parse_board_content(content)
+
+def parse_board_content(content: str) -> BoardState:
+    lines = content.splitlines()
     if len(lines) != 10:
         raise ValueError("parsing fails")
     # preprocess: parse into a 6x6 string array
