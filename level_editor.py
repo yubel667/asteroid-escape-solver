@@ -142,7 +142,12 @@ class LevelEditor:
                     if event.key == pygame.K_r and self.dragging_idx is not None:
                         p = self.current_pieces[self.dragging_idx]
                         if not p.is_ship:
-                            self.current_pieces[self.dragging_idx] = next(c for c in PIECES if c.piece_id == p.piece_id and c.orientation == (p.orientation + 1) % 4)
+                            # Try next orientation, fallback to 0 if not found
+                            next_orient = (p.orientation + 1) % 4
+                            try:
+                                self.current_pieces[self.dragging_idx] = next(c for c in PIECES if c.piece_id == p.piece_id and c.orientation == next_orient)
+                            except StopIteration:
+                                self.current_pieces[self.dragging_idx] = next(c for c in PIECES if c.piece_id == p.piece_id and c.orientation == 0)
                     elif event.key == pygame.K_s:
                         success, msg = self.save()
                         status_override = msg
