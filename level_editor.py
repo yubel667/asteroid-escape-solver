@@ -17,81 +17,87 @@ class LevelEditor:
         self.problem_id = problem_id
         self.file_path = f"questions/{problem_id}.txt"
         
+        # Identity is based on index in this list (0-7)
         self.piece_pool_types = [0, 1, 1, 1, 2, 3, 4, 5]
         self.current_pieces = []
         for tid in self.piece_pool_types:
             p = next(p for p in PIECES if p.piece_id == tid)
             self.current_pieces.append(p)
         
-        self.board_layout = np.full((3, 3), None, dtype=object)
+        # State: (tile_j, tile_i) -> index in self.current_pieces (0-7) or -1
+        self.board_layout = np.full((3, 3), -1, dtype=int)
         self.dragging_idx = None 
         
         if os.path.exists(self.file_path):
             try:
                 state = parse_board(problem_id)
-                pool_copy = list(range(8))
+                pool_slots_available = list(range(8))
                 for tj in range(3):
                     for ti in range(3):
                         pid_in_state = state.board[tj, ti]
                         if pid_in_state < 8:
                             piece = state.setup.pieces[pid_in_state]
-                            for i in pool_copy:
-                                if self.current_pieces[i].piece_id == piece.piece_id:
-                                    self.current_pieces[i] = piece
-                                    self.board_layout[tj, ti] = self.current_pieces[i]
-                                    pool_copy.remove(i)
+                            # Find a slot in our pool that matches this type
+                            for slot_idx in pool_slots_available:
+                                if self.current_pieces[slot_idx].piece_id == piece.piece_id:
+                                    self.current_pieces[slot_idx] = piece # Set the correct rotation
+                                    self.board_layout[tj, ti] = slot_idx
+                                    pool_slots_available.remove(slot_idx)
                                     break
             except Exception as e:
                 print(f"Error loading level: {e}")
 
     def is_piece_free(self, idx):
-        p = self.current_pieces[idx]
-        for tj in range(3):
-            for ti in range(3):
-                if self.board_layout[tj, ti] == p: return False
-        return True
+        return idx not in self.board_layout
 
     def get_piece_sidebar_pos(self, idx):
         row, col = idx // 2, idx % 2
         return EDITOR_WIDTH + 30 + col * 80, 50 + row * 80
 
     def check_valid(self):
-        placed = []
+        placed_slots = []
         for tj in range(3):
             for ti in range(3):
-                if self.board_layout[tj, ti]:
-                    placed.append((tj, ti, self.board_layout[tj, ti]))
+                slot_idx = self.board_layout[tj, ti]
+                if slot_idx != -1:
+                    placed_slots.append((tj, ti, slot_idx))
         
-        if len(placed) < 8:
-            return False, f"Placed {len(placed)}/8 pieces"
+        if len(placed_slots) < 8:
+            return False, f"Placed {len(placed_slots)}/8 pieces"
         
         # Collision check
-        setup = BoardSetup([p for tj, ti, p in placed])
+        setup_pieces = [self.current_pieces[slot_idx] for _, _, slot_idx in placed_slots]
+        setup = BoardSetup(setup_pieces)
         board_indices = np.full((3, 3), 8, dtype=np.int8)
-        for idx, (tj, ti, p) in enumerate(placed):
-            board_indices[tj, ti] = idx
+        for i, (tj, ti, _) in enumerate(placed_slots):
+            board_indices[tj, ti] = i
         state = BoardState(setup, board_indices)
         
         for i in range(8):
             for j in range(i + 1, 8):
-                tj1, ti1, _ = placed[i]
-                tj2, ti2, _ = placed[j]
+                tj1, ti1, _ = placed_slots[i]
+                tj2, ti2, _ = placed_slots[j]
                 if state.is_collision(i, 2+tj1*3, 2+ti1*3, j, 2+tj2*3, 2+ti2*3):
                     return False, "Collision detected!"
         return True, "Ready to save (S)"
 
     def save(self):
         valid, msg = self.check_valid()
-        if not valid: return
-        placed = []
+        if not valid: 
+            print(f"Save failed: {msg}")
+            return
+        
+        placed_pieces = []
         board_indices = np.full((3, 3), 8, dtype=np.int8)
         for tj in range(3):
             for ti in range(3):
-                p = self.board_layout[tj, ti]
-                if p:
-                    board_indices[tj, ti] = len(placed)
-                    placed.append(p)
-        state = BoardState(BoardSetup(placed), board_indices)
+                slot_idx = self.board_layout[tj, ti]
+                if slot_idx != -1:
+                    board_indices[tj, ti] = len(placed_pieces)
+                    placed_pieces.append(self.current_pieces[slot_idx])
+        
+        state = BoardState(BoardSetup(placed_pieces), board_indices)
+        os.makedirs("questions", exist_ok=True)
         with open(self.file_path, "w") as f:
             f.write(serialize_board(state))
         print(f"Saved to {self.file_path}")
@@ -108,43 +114,45 @@ class LevelEditor:
                 if event.type == pygame.QUIT: return
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:
-                        # Sidebar
+                        # Sidebar check
+                        found_in_sidebar = False
                         for i in range(8):
                             x, y = self.get_piece_sidebar_pos(i)
                             if pygame.Rect(x, y, 60, 60).collidepoint(mouse_pos):
+                                # If it was on board, remove it
                                 for tj in range(3):
                                     for ti in range(3):
-                                        if self.board_layout[tj, ti] == self.current_pieces[i]:
-                                            self.board_layout[tj, ti] = None
+                                        if self.board_layout[tj, ti] == i:
+                                            self.board_layout[tj, ti] = -1
                                 self.dragging_idx = i
+                                found_in_sidebar = True
                                 break
-                        # Board
+                        # Board check
+                        if not found_in_sidebar and mouse_pos[0] < EDITOR_WIDTH:
+                            for tj in range(3):
+                                for ti in range(3):
+                                    bx, by, bw, bh = vis.get_tile_pixel_bounds(tj, ti)
+                                    if pygame.Rect(bx, by, bw, bh).collidepoint(mouse_pos):
+                                        slot_idx = self.board_layout[tj, ti]
+                                        if slot_idx != -1:
+                                            self.dragging_idx = slot_idx
+                                            self.board_layout[tj, ti] = -1
+                    elif event.button == 3: # Right click remove
                         if mouse_pos[0] < EDITOR_WIDTH:
                             for tj in range(3):
                                 for ti in range(3):
                                     bx, by, bw, bh = vis.get_tile_pixel_bounds(tj, ti)
                                     if pygame.Rect(bx, by, bw, bh).collidepoint(mouse_pos):
-                                        p = self.board_layout[tj, ti]
-                                        if p:
-                                            self.dragging_idx = next(i for i, cp in enumerate(self.current_pieces) if cp == p)
-                                            self.board_layout[tj, ti] = None
-                    elif event.button == 3:
-                        for tj in range(3):
-                            for ti in range(3):
-                                bx, by, bw, bh = vis.get_tile_pixel_bounds(tj, ti)
-                                if pygame.Rect(bx, by, bw, bh).collidepoint(mouse_pos):
-                                    self.board_layout[tj, ti] = None
+                                        self.board_layout[tj, ti] = -1
                 elif event.type == pygame.MOUSEBUTTONUP:
                     if event.button == 1 and self.dragging_idx is not None:
-                        placed = False
                         if mouse_pos[0] < EDITOR_WIDTH:
                             for tj in range(3):
                                 for ti in range(3):
                                     bx, by, bw, bh = vis.get_tile_pixel_bounds(tj, ti)
                                     if pygame.Rect(bx, by, bw, bh).collidepoint(mouse_pos):
-                                        if self.board_layout[tj, ti] is None:
-                                            self.board_layout[tj, ti] = self.current_pieces[self.dragging_idx]
-                                            placed = True
+                                        if self.board_layout[tj, ti] == -1:
+                                            self.board_layout[tj, ti] = self.dragging_idx
                         self.dragging_idx = None
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r and self.dragging_idx is not None:
@@ -153,39 +161,48 @@ class LevelEditor:
                     elif event.key == pygame.K_s: self.save()
 
             vis.draw_board_chrome(screen)
-            # Sidebar
             pygame.draw.rect(screen, (25, 28, 38), (EDITOR_WIDTH, 0, SIDEBAR_WIDTH, WINDOW_HEIGHT))
+            
+            cosmos_draw_queue = [] 
+            piece_draw_queue = []  
+
+            # 1. Sidebar pieces
             for i, p in enumerate(self.current_pieces):
                 if self.dragging_idx == i: continue
                 x, y = self.get_piece_sidebar_pos(i)
-                color = vis.COLOR_MAP.get(p.piece_id, (200, 200, 200))
                 is_free = self.is_piece_free(i)
-                # Cosmos tile background for sidebar (scaled)
                 scale = 0.3
-                bw, bh = sum(vis.UNIT_SIZES[1:4])*scale, sum(vis.UNIT_SIZES[1:4])*scale
-                bx, by = x + 30 - bw/2, y + 30 - bh/2
+                tile_size = sum(vis.UNIT_SIZES[1:4]) * scale
+                bx, by = x + 30 - tile_size/2, y + 30 - tile_size/2
                 bg_color = vis.COSMOS_TILE if is_free else tuple(c//3 for c in vis.COSMOS_TILE)
-                pygame.draw.rect(screen, bg_color, (bx, by, bw, bh), 0, int(12*scale))
-                # Piece icon
-                vis.draw_piece(screen, None, PIECES.index(p), y+30, x+30, scale=scale)
+                cosmos_draw_queue.append((bx, by, tile_size, tile_size, scale, bg_color))
+                piece_draw_queue.append((PIECES.index(p), y+30, x+30, scale))
             
-            # Board pieces
+            # 2. Board pieces
             for tj in range(3):
                 for ti in range(3):
-                    p = self.board_layout[tj, ti]
-                    if p:
+                    slot_idx = self.board_layout[tj, ti]
+                    if slot_idx != -1:
+                        p = self.current_pieces[slot_idx]
                         cj, ci = vis.get_tile_pixel_center(tj, ti)
                         bx, by, bw, bh = vis.get_tile_pixel_bounds(tj, ti)
-                        pygame.draw.rect(screen, vis.COSMOS_TILE, (bx+2, by+2, bw-4, bh-4), 0, 12)
-                        pygame.draw.rect(screen, (max(0, vis.COSMOS_TILE[0]-10), max(0, vis.COSMOS_TILE[1]-10), max(0, vis.COSMOS_TILE[2]-10)), (bx + 2, by + 2, bw - 4, bh - 4), 2, 12)
-                        vis.draw_piece(screen, None, PIECES.index(p), cj, ci)
+                        cosmos_draw_queue.append((bx+2, by+2, bw-4, bh-4, 1.0, vis.COSMOS_TILE))
+                        piece_draw_queue.append((PIECES.index(p), cj, ci, 1.0))
             
+            # 3. Ghost piece
             if self.dragging_idx is not None:
                 p = self.current_pieces[self.dragging_idx]
-                # Draw cosmos background for ghost
-                bw, bh = sum(vis.UNIT_SIZES[1:4]), sum(vis.UNIT_SIZES[1:4])
-                pygame.draw.rect(screen, vis.COSMOS_TILE, (mouse_pos[0]-bw/2, mouse_pos[1]-bh/2, bw, bh), 0, 12)
-                vis.draw_piece(screen, None, PIECES.index(p), mouse_pos[1], mouse_pos[0])
+                tile_size = sum(vis.UNIT_SIZES[1:4])
+                cosmos_draw_queue.append((mouse_pos[0]-tile_size/2, mouse_pos[1]-tile_size/2, tile_size, tile_size, 1.0, vis.COSMOS_TILE))
+                piece_draw_queue.append((PIECES.index(p), mouse_pos[1], mouse_pos[0], 1.0))
+
+            for bx, by, bw, bh, sc, bg_c in cosmos_draw_queue:
+                pygame.draw.rect(screen, bg_c, (bx, by, bw, bh), 0, int(12*sc))
+                if sc == 1.0:
+                    pygame.draw.rect(screen, (max(0, bg_c[0]-10), max(0, bg_c[1]-10), max(0, bg_c[2]-10)), (bx, by, bw, bh), 2, 12)
+
+            for p_idx, cj, ci, sc in piece_draw_queue:
+                vis.draw_piece(screen, None, p_idx, cj, ci, scale=sc)
 
             valid, msg = self.check_valid()
             font = pygame.font.SysFont(None, 24)
