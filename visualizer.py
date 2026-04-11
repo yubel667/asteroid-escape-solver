@@ -2,8 +2,6 @@ import pygame
 import sys
 import time
 from board import BoardState
-from board_io import parse_board
-from solver import solve
 
 # Colors
 BACKGROUND = (10, 12, 20)
@@ -28,6 +26,8 @@ B_SIZE = 25
 UNIT_SIZES = [B_SIZE, C_SIZE, M_SIZE, C_SIZE, C_SIZE, M_SIZE, C_SIZE, C_SIZE, M_SIZE, C_SIZE, B_SIZE]
 MARGIN = 30
 ANIMATION_DURATION = 0.4  # Seconds per move
+MOVE_DELAY = 0.3          # Seconds to wait between moves
+TOTAL_STEP_TIME = ANIMATION_DURATION + MOVE_DELAY
 
 def get_unit_pos(idx):
     pos = MARGIN
@@ -53,15 +53,15 @@ def draw_piece(screen, state, pid, pix_cj, pix_ci):
     
     if piece.is_ship:
         S_UP = 0
-        # Body (Row -1)
-        body_cj = pix_cj - (M_SIZE/2 + C_SIZE/2) + S_UP
-        body_width = 4 * C_SIZE + M_SIZE
-        pygame.draw.rect(screen, color, (pix_ci - body_width/2 + 4, body_cj - C_SIZE/2 + 4, body_width - 8, C_SIZE - 8), 0, 10)
+        body_center_y = pix_cj - (M_SIZE/2 + C_SIZE/2) + S_UP
+        p1x = pix_ci - (M_SIZE/2 + C_SIZE + C_SIZE/2)
+        p2x = pix_ci + (M_SIZE/2 + C_SIZE + C_SIZE/2)
+        bw = p2x - p1x + C_SIZE
+        pygame.draw.rect(screen, color, (p1x - C_SIZE/2 + 4, body_center_y - C_SIZE/2 + 4, bw - 8, C_SIZE - 8), 0, 10)
         
-        # Nose (Row +1)
-        base_y = body_cj + C_SIZE/2
-        tip_y = pix_cj + M_SIZE/2 + C_SIZE * 0.2 + S_UP
-        pygame.draw.polygon(screen, color, [(pix_ci - 18, base_y), (pix_ci + 18, base_y), (pix_ci, tip_y)])
+        ty = pix_cj + (M_SIZE/2 + C_SIZE/2) * 0.9 + S_UP
+        base_y = body_center_y + C_SIZE/2
+        pygame.draw.polygon(screen, color, [(pix_ci - 18, base_y), (pix_ci + 18, base_y), (pix_ci, ty + C_SIZE/2)])
     else:
         is_big = piece.piece_id in [4, 5]
         if is_big:
@@ -119,20 +119,27 @@ def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
     y_pos = MARGIN + sum(UNIT_SIZES[:10])
     pygame.draw.rect(screen, (0, 255, 120), (start_x, y_pos, end_x - start_x, 10), 0, 5)
 
+    # Determine which pieces to draw and where
     moving_f, moving_t = move_info if move_info else (None, None)
+    piece_draw_data = [] 
     
+    ship_pid = next((i for i, p in enumerate(state.setup.pieces) if p.is_ship), None)
+    ship_rendered = False
+
     for tj in range(3):
         for ti in range(3):
             pid = state.board[tj, ti]
             if pid == 8: continue
             
+            if pid == ship_pid: ship_rendered = True
+
             cj, ci = get_tile_pixel_center(tj, ti)
             bx, by, bw, bh = get_tile_pixel_bounds(tj, ti)
             
             if (tj, ti) == moving_f:
                 target_j, target_i = moving_t
-                if target_j == 3: # Exit move: straight down
-                    offset = 132 # Distance between adjacent tile centers
+                if target_j == 3: # Exit
+                    offset = 132
                     target_cj, target_ci = cj + offset, ci
                     target_by, target_bx = by + offset, bx
                 else:
@@ -143,33 +150,41 @@ def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
                 cur_ci = ci + (target_ci - ci) * alpha
                 cur_bx = bx + (target_bx - bx) * alpha
                 cur_by = by + (target_by - by) * alpha
+                if pid == ship_pid: ship_rendered = True
             else:
                 cur_cj, cur_ci = cj, ci
                 cur_bx, cur_by = bx, by
             
             pygame.draw.rect(screen, COSMOS_TILE, (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 0, 12)
             pygame.draw.rect(screen, (max(0, COSMOS_TILE[0]-10), max(0, COSMOS_TILE[1]-10), max(0, COSMOS_TILE[2]-10)), (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 2, 12)
-            draw_piece(screen, state, pid, cur_cj, cur_ci)
+            piece_draw_data.append((pid, cur_cj, cur_ci))
 
-def main():
+    # Draw ship at virtual tile if it has exited
+    if not ship_rendered and ship_pid is not None:
+        cj, ci = get_tile_pixel_center(2, 1)
+        bx, by, bw, bh = get_tile_pixel_bounds(2, 1)
+        offset = 132
+        cur_cj, cur_ci = cj + offset, ci
+        cur_bx, cur_by = bx, by + offset
+        pygame.draw.rect(screen, COSMOS_TILE, (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 0, 12)
+        pygame.draw.rect(screen, (max(0, COSMOS_TILE[0]-10), max(0, COSMOS_TILE[1]-10), max(0, COSMOS_TILE[2]-10)), (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 2, 12)
+        piece_draw_data.append((ship_pid, cur_cj, cur_ci))
+
+    for pid, cur_cj, cur_ci in piece_draw_data:
+        draw_piece(screen, state, pid, cur_cj, cur_ci)
+
+def run_visualizer(initial_state, solution):
     pygame.init()
     W_S = sum(UNIT_SIZES) + MARGIN * 2
     screen = pygame.display.set_mode((W_S, W_S + 40))
     pygame.display.set_caption("Asteroid Escape Solver")
     
-    question_num = sys.argv[1] if len(sys.argv) > 1 else "01"
-    initial_state = parse_board(question_num)
-    
-    solution = solve(initial_state)
-    if not solution:
-        print("No solution found!")
-        return
-
     move_steps = []
     curr = initial_state
-    for f, t in solution:
-        move_steps.append((curr, (f, t)))
-        curr = curr.do_move(f, t)
+    if solution:
+        for f, t in solution:
+            move_steps.append((curr, (f, t)))
+            curr = curr.do_move(f, t)
     move_steps.append((curr, None))
 
     running = True
@@ -196,8 +211,10 @@ def main():
         state_before, move = move_steps[step_idx]
         if move and not paused:
             elapsed = now - anim_start_time
+            # Alpha is 0.0 to 1.0 during ANIMATION_DURATION, then stays 1.0 during MOVE_DELAY
             alpha = min(1.0, elapsed / ANIMATION_DURATION)
-            if alpha >= 1.0:
+            
+            if elapsed >= TOTAL_STEP_TIME:
                 if step_idx < len(move_steps) - 1:
                     step_idx += 1
                     anim_start_time = time.time()
@@ -219,6 +236,3 @@ def main():
         pygame.time.Clock().tick(60)
 
     pygame.quit()
-
-if __name__ == "__main__":
-    main()
