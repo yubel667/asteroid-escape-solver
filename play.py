@@ -61,12 +61,13 @@ def main():
                     move_info = None
                     is_animating = False
                     cached_solution = []
+                    hint_msg = ""
                 elif event.key == pygame.K_h and not is_animating and not current_state.is_solved() and not solve_proc:
                     if cached_solution:
                         # Use next move from cache
                         move = cached_solution.pop(0)
                         move_info = (tuple(move['from']), tuple(move['to']))
-                        hint_msg = f"Moves left: {len(cached_solution) + 1}"
+                        hint_msg = f"Moves left: {len(cached_solution) + 1}\nPress H to step"
                         hint_msg_time = now
                         anim_start_time = now
                         is_animating = True
@@ -107,7 +108,7 @@ def main():
                             is_animating = True
                             is_illegal_anim = False
                             cached_solution = []
-                    
+                            hint_msg = ""
                     if not is_animating:
                         # 2. Normal move towards empty spot (Valid or Illegal)
                         ej, ei = current_state.get_empty_pos()
@@ -136,6 +137,7 @@ def main():
                                         is_animating = True
                                         is_illegal_anim = False
                                         cached_solution = [] # Manual move invalidates cache
+                                        hint_msg = ""
                                     else:
                                         # Illegal move towards empty space
                                         move_info = (from_pos, to_pos)
@@ -163,7 +165,7 @@ def main():
                         cached_solution = result
                         if cached_solution:
                             move = cached_solution.pop(0)
-                            hint_msg = f"Moves left: {len(cached_solution) + 1}"
+                            hint_msg = f"Moves left: {len(cached_solution) + 1}\nPress H to step"
                             move_info = (tuple(move['from']), tuple(move['to']))
                             anim_start_time = time.time()
                             is_animating = True
@@ -209,8 +211,8 @@ def main():
         img = pygame.font.SysFont(None, 24).render(status, True, (200, 200, 200))
         screen.blit(img, (vis.MARGIN, W_S + 10))
         
-        # Hint message (briefly show)
-        if hint_msg and now - hint_msg_time < 2.0:
+        # Hint message (persist until manual move)
+        if hint_msg:
             hint_img = pygame.font.SysFont(None, 24, bold=True).render(hint_msg, True, (255, 255, 100))
             screen.blit(hint_img, (W_S - vis.MARGIN - hint_img.get_width(), W_S + 10))
         
