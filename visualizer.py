@@ -39,53 +39,38 @@ WINDOW_SIZE = sum(UNIT_SIZES) + MARGIN * 2
 
 def draw_piece(screen, state, tj, ti, pid):
     piece = state.setup.pieces[pid]
-    center_j = 2 + tj * 3
-    center_i = 2 + ti * 3
+    u_cj = 2 + tj * 3
+    u_ci = 2 + ti * 3
     color = COLOR_MAP.get(piece.piece_id, (200, 200, 200))
-    
+
     if piece.is_ship:
-        # Get bounds of all cells to draw the body
-        min_u_j, min_u_i = 99, 99
-        max_u_j, max_u_i = -99, -99
-        all_screen_pts = []
-        for cell in piece.cells:
-            uj, ui = center_j + cell.y, center_i + cell.x
-            _, cj = get_unit_pos(uj)
-            _, ci = get_unit_pos(ui)
-            all_screen_pts.append((ci, cj))
-            min_u_j, min_u_i = min(min_u_j, uj), min(min_u_i, ui)
-            max_u_j, max_u_i = max(max_u_j, uj), max(max_u_i, ui)
+        # Center of the center unit in pixels
+        _, pix_cj = get_unit_pos(u_cj)
+        _, pix_ci = get_unit_pos(u_ci)
         
-        # Draw body as a rounded rect covering the span
-        p1_x, _ = get_unit_pos(min_u_i)
-        p1_y, _ = get_unit_pos(min_u_j)
-        p2_x, _ = get_unit_pos(max_u_i)
-        p2_y, _ = get_unit_pos(max_u_j)
-        p2_x += UNIT_SIZES[max_u_i]
-        p2_y += UNIT_SIZES[max_u_j]
-        
-        pygame.draw.rect(screen, color, (p1_x + 4, p1_y + 4, p2_x - p1_x - 8, p2_y - p1_y - 8), 0, 15)
-        
-        # Nose is at specific relative Loc(1,0) rotated
-        nose_loc = piece.cells[0] # Usually Loc(1,0) rotated is the nose
-        # Actually better: piece.orientation tells us direction
-        # 0=D, 1=L, 2=U, 3=R in CW Loc.rotate logic?
-        # Let's just use the Loc(1,0) rotated as the nose tip
-        tip_uj, tip_ui = center_j + piece.cells[0].y, center_i + piece.cells[0].x
-        _, tip_cj = get_unit_pos(tip_uj)
-        _, tip_ci = get_unit_pos(tip_ui)
-        
-        # Draw a triangle pointing from body center to tip
-        pygame.draw.circle(screen, color, (int(tip_ci), int(tip_cj)), int(M_SIZE*1.5))
-        
+        # Upward shift for the whole ship
+        S_UP = -30
+
+        # Ship always faces Down (Orientation 0)
+        # Body at Row -1
+        _, by = get_unit_pos(u_cj - 1)
+        by += S_UP
+        p1x, _ = get_unit_pos(u_ci - 2)
+        p2x, _ = get_unit_pos(u_ci + 2)
+        p2x += UNIT_SIZES[u_ci + 2]
+        pygame.draw.rect(screen, color, (p1x + 4, by + 4, p2x - p1x - 8, UNIT_SIZES[u_cj-1] - 8), 0, 10)
+        # Nose at Row +1
+        _, ty = get_unit_pos(u_cj + 1)
+        ty += UNIT_SIZES[u_cj+1] * 0.45 + S_UP
+        pygame.draw.polygon(screen, color, [(pix_ci - 18, by + UNIT_SIZES[u_cj-1]), (pix_ci + 18, by + UNIT_SIZES[u_cj-1]), (pix_ci, ty)])
     else:
         is_big = piece.piece_id in [4, 5]
         if is_big:
             # Single big circle centered on all cells
             sum_x, sum_y = 0, 0
             for cell in piece.cells:
-                _, cj = get_unit_pos(center_j + cell.y)
-                _, ci = get_unit_pos(center_i + cell.x)
+                _, cj = get_unit_pos(u_cj + cell.y)
+                _, ci = get_unit_pos(u_ci + cell.x)
                 sum_x += ci
                 sum_y += cj
             avg_x = sum_x / len(piece.cells)
@@ -98,8 +83,8 @@ def draw_piece(screen, state, tj, ti, pid):
             grid_pos = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
             for cell in piece.cells:
                 if (cell.y, cell.x) in grid_pos:
-                    _, cy = get_unit_pos(center_j + cell.y)
-                    _, cx = get_unit_pos(center_i + cell.x)
+                    _, cy = get_unit_pos(u_cj + cell.y)
+                    _, cx = get_unit_pos(u_ci + cell.x)
                     radius = C_SIZE * 0.45
                     pygame.draw.circle(screen, color, (int(cx), int(cy)), int(radius))
                     pygame.draw.circle(screen, (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30)), (int(cx), int(cy)), int(radius), 2)
