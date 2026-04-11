@@ -6,13 +6,14 @@ from board_io import parse_board
 from solver import solve
 
 # Colors
-BACKGROUND = (15, 17, 26)
-GRID_LINE = (35, 40, 55)
-TILE_BORDER = (70, 80, 100)
-EMPTY = (10, 12, 18)
+BACKGROUND = (10, 12, 20)
+GRID_LINE = (30, 35, 50)
+TILE_BORDER = (60, 70, 90)
+EMPTY = (5, 7, 12)
+COSMOS_TILE = (25, 35, 60) # Dark Blue Cosmos color
 
 COLOR_MAP = {
-    0: (60, 160, 255),    # Ship (Blue)
+    0: (80, 180, 255),    # Ship (Blue)
     1: (180, 140, 100),   # Small asteroid
     2: (180, 140, 100),
     3: (180, 140, 100),
@@ -21,78 +22,84 @@ COLOR_MAP = {
 }
 
 # Variable grid sizes to make 2x2 look
-# 11 units: 0(B), 1(C), 2(M), 3(C), 4(C), 5(M), 6(C), 7(C), 8(M), 9(C), 10(B)
-C_SIZE = 60  # Corner quadrants
-M_SIZE = 12  # Middle thin bars
-B_SIZE = 25  # Board border
+C_SIZE = 60
+M_SIZE = 12
+B_SIZE = 25
 UNIT_SIZES = [B_SIZE, C_SIZE, M_SIZE, C_SIZE, C_SIZE, M_SIZE, C_SIZE, C_SIZE, M_SIZE, C_SIZE, B_SIZE]
 MARGIN = 30
+ANIMATION_DURATION = 0.4  # Seconds per move
 
 def get_unit_pos(idx):
-    # Returns the start pixel and center pixel of unit idx
     pos = MARGIN
     for i in range(idx):
         pos += UNIT_SIZES[i]
     return pos, pos + UNIT_SIZES[idx] / 2
 
-WINDOW_SIZE = sum(UNIT_SIZES) + MARGIN * 2
+def get_tile_pixel_center(tj, ti):
+    _, cj = get_unit_pos(2 + tj * 3)
+    _, ci = get_unit_pos(2 + ti * 3)
+    return cj, ci
 
-def draw_piece(screen, state, tj, ti, pid):
+def get_tile_pixel_bounds(tj, ti):
+    y, _ = get_unit_pos(1 + tj * 3)
+    x, _ = get_unit_pos(1 + ti * 3)
+    h = UNIT_SIZES[1+tj*3] + UNIT_SIZES[2+tj*3] + UNIT_SIZES[3+tj*3]
+    w = UNIT_SIZES[1+ti*3] + UNIT_SIZES[2+ti*3] + UNIT_SIZES[3+ti*3]
+    return x, y, w, h
+
+def draw_piece(screen, state, pid, pix_cj, pix_ci):
     piece = state.setup.pieces[pid]
-    u_cj = 2 + tj * 3
-    u_ci = 2 + ti * 3
     color = COLOR_MAP.get(piece.piece_id, (200, 200, 200))
-
+    
     if piece.is_ship:
-        # Center of the center unit in pixels
-        _, pix_cj = get_unit_pos(u_cj)
-        _, pix_ci = get_unit_pos(u_ci)
+        S_UP = 0
+        # Body (Row -1)
+        body_cj = pix_cj - (M_SIZE/2 + C_SIZE/2) + S_UP
+        body_width = 4 * C_SIZE + M_SIZE
+        pygame.draw.rect(screen, color, (pix_ci - body_width/2 + 4, body_cj - C_SIZE/2 + 4, body_width - 8, C_SIZE - 8), 0, 10)
         
-        # Upward shift for the whole ship
-        S_UP = -30
-
-        # Ship always faces Down (Orientation 0)
-        # Body at Row -1
-        _, by = get_unit_pos(u_cj - 1)
-        by += S_UP
-        p1x, _ = get_unit_pos(u_ci - 2)
-        p2x, _ = get_unit_pos(u_ci + 2)
-        p2x += UNIT_SIZES[u_ci + 2]
-        pygame.draw.rect(screen, color, (p1x + 4, by + 4, p2x - p1x - 8, UNIT_SIZES[u_cj-1] - 8), 0, 10)
-        # Nose at Row +1
-        _, ty = get_unit_pos(u_cj + 1)
-        ty += UNIT_SIZES[u_cj+1] * 0.45 + S_UP
-        pygame.draw.polygon(screen, color, [(pix_ci - 18, by + UNIT_SIZES[u_cj-1]), (pix_ci + 18, by + UNIT_SIZES[u_cj-1]), (pix_ci, ty)])
+        # Nose (Row +1)
+        base_y = body_cj + C_SIZE/2
+        tip_y = pix_cj + M_SIZE/2 + C_SIZE * 0.2 + S_UP
+        pygame.draw.polygon(screen, color, [(pix_ci - 18, base_y), (pix_ci + 18, base_y), (pix_ci, tip_y)])
     else:
         is_big = piece.piece_id in [4, 5]
         if is_big:
-            # Single big circle centered on all cells
-            sum_x, sum_y = 0, 0
+            sum_dx, sum_dy = 0, 0
             for cell in piece.cells:
-                _, cj = get_unit_pos(u_cj + cell.y)
-                _, ci = get_unit_pos(u_ci + cell.x)
-                sum_x += ci
-                sum_y += cj
-            avg_x = sum_x / len(piece.cells)
-            avg_y = sum_y / len(piece.cells)
+                dy = 0
+                if cell.y == 1: dy = M_SIZE/2 + C_SIZE/2
+                elif cell.y == -1: dy = -(M_SIZE/2 + C_SIZE/2)
+                elif cell.y == 2: dy = M_SIZE/2 + C_SIZE + C_SIZE/2
+                elif cell.y == -2: dy = -(M_SIZE/2 + C_SIZE + C_SIZE/2)
+                
+                dx = 0
+                if cell.x == 1: dx = M_SIZE/2 + C_SIZE/2
+                elif cell.x == -1: dx = -(M_SIZE/2 + C_SIZE/2)
+                elif cell.x == 2: dx = M_SIZE/2 + C_SIZE + C_SIZE/2
+                elif cell.x == -2: dx = -(M_SIZE/2 + C_SIZE + C_SIZE/2)
+                
+                sum_dy += dy
+                sum_dx += dx
+            
+            avg_cy = pix_cj + sum_dy / len(piece.cells)
+            avg_cx = pix_ci + sum_dx / len(piece.cells)
             radius = C_SIZE * 1.1
-            pygame.draw.circle(screen, color, (int(avg_x), int(avg_y)), int(radius))
-            pygame.draw.circle(screen, (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30)), (int(avg_x), int(avg_y)), int(radius), 3)
+            pygame.draw.circle(screen, color, (int(avg_cx), int(avg_cy)), int(radius))
+            pygame.draw.circle(screen, (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30)), (int(avg_cx), int(avg_cy)), int(radius), 3)
         else:
-            # Small asteroids: one circle per "quadrant" cell (ignore middle bar cells for center)
             grid_pos = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
             for cell in piece.cells:
                 if (cell.y, cell.x) in grid_pos:
-                    _, cy = get_unit_pos(u_cj + cell.y)
-                    _, cx = get_unit_pos(u_ci + cell.x)
+                    off_y = (M_SIZE/2 + C_SIZE/2) if cell.y == 1 else -(M_SIZE/2 + C_SIZE/2)
+                    off_x = (M_SIZE/2 + C_SIZE/2) if cell.x == 1 else -(M_SIZE/2 + C_SIZE/2)
                     radius = C_SIZE * 0.45
-                    pygame.draw.circle(screen, color, (int(cx), int(cy)), int(radius))
-                    pygame.draw.circle(screen, (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30)), (int(cx), int(cy)), int(radius), 2)
+                    pygame.draw.circle(screen, color, (int(pix_ci + off_x), int(pix_cj + off_y)), int(radius))
+                    pygame.draw.circle(screen, (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30)), (int(pix_ci + off_x), int(pix_cj + off_y)), int(radius), 2)
 
-def draw_board(screen, state: BoardState):
+def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
     screen.fill(BACKGROUND)
     
-    # Draw units grid lines
     curr = MARGIN
     for size in UNIT_SIZES:
         pygame.draw.line(screen, GRID_LINE, (MARGIN, curr), (MARGIN + sum(UNIT_SIZES), curr), 1)
@@ -101,78 +108,112 @@ def draw_board(screen, state: BoardState):
     pygame.draw.line(screen, GRID_LINE, (MARGIN, curr), (MARGIN + sum(UNIT_SIZES), curr), 1)
     pygame.draw.line(screen, GRID_LINE, (curr, MARGIN), (curr, MARGIN + sum(UNIT_SIZES)), 1)
 
-    # Draw Tile boundaries
     for t_idx in [0, 1, 2, 3]:
-        # Indices in UNIT_SIZES for tile start/end
         idx = 1 + t_idx * 3 if t_idx < 3 else 10
         pos = MARGIN + sum(UNIT_SIZES[:idx])
         pygame.draw.line(screen, TILE_BORDER, (MARGIN, pos), (MARGIN + sum(UNIT_SIZES), pos), 3)
         pygame.draw.line(screen, TILE_BORDER, (pos, MARGIN), (pos, MARGIN + sum(UNIT_SIZES)), 3)
 
-    # Draw Opening
     start_x = MARGIN + sum(UNIT_SIZES[:4])
     end_x = MARGIN + sum(UNIT_SIZES[:7])
     y_pos = MARGIN + sum(UNIT_SIZES[:10])
     pygame.draw.rect(screen, (0, 255, 120), (start_x, y_pos, end_x - start_x, 10), 0, 5)
 
-    # Draw Pieces
+    moving_f, moving_t = move_info if move_info else (None, None)
+    
     for tj in range(3):
         for ti in range(3):
             pid = state.board[tj, ti]
-            if pid < 8:
-                draw_piece(screen, state, tj, ti, pid)
+            if pid == 8: continue
+            
+            cj, ci = get_tile_pixel_center(tj, ti)
+            bx, by, bw, bh = get_tile_pixel_bounds(tj, ti)
+            
+            if (tj, ti) == moving_f:
+                target_j, target_i = moving_t
+                if target_j == 3: # Exit move: straight down
+                    offset = 132 # Distance between adjacent tile centers
+                    target_cj, target_ci = cj + offset, ci
+                    target_by, target_bx = by + offset, bx
+                else:
+                    target_cj, target_ci = get_tile_pixel_center(target_j, target_i)
+                    target_bx, target_by, _, _ = get_tile_pixel_bounds(target_j, target_i)
+                
+                cur_cj = cj + (target_cj - cj) * alpha
+                cur_ci = ci + (target_ci - ci) * alpha
+                cur_bx = bx + (target_bx - bx) * alpha
+                cur_by = by + (target_by - by) * alpha
+            else:
+                cur_cj, cur_ci = cj, ci
+                cur_bx, cur_by = bx, by
+            
+            pygame.draw.rect(screen, COSMOS_TILE, (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 0, 12)
+            pygame.draw.rect(screen, (max(0, COSMOS_TILE[0]-10), max(0, COSMOS_TILE[1]-10), max(0, COSMOS_TILE[2]-10)), (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 2, 12)
+            draw_piece(screen, state, pid, cur_cj, cur_ci)
 
 def main():
     pygame.init()
-    # Increase height for status bar
-    screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE + 40))
+    W_S = sum(UNIT_SIZES) + MARGIN * 2
+    screen = pygame.display.set_mode((W_S, W_S + 40))
     pygame.display.set_caption("Asteroid Escape Solver")
     
     question_num = sys.argv[1] if len(sys.argv) > 1 else "01"
     initial_state = parse_board(question_num)
     
-    print("Solving...")
     solution = solve(initial_state)
     if not solution:
         print("No solution found!")
         return
 
-    moves = [initial_state]
+    move_steps = []
     curr = initial_state
     for f, t in solution:
+        move_steps.append((curr, (f, t)))
         curr = curr.do_move(f, t)
-        moves.append(curr)
+    move_steps.append((curr, None))
 
     running = True
-    move_idx = 0
-    last_move_time = time.time()
+    step_idx = 0
+    anim_start_time = time.time()
+    paused = False
     
     while running:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+            if event.type == pygame.QUIT: running = False
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    move_idx = 0 # Reset
+                if event.key == pygame.K_SPACE: paused = not paused
+                if event.key == pygame.K_r:
+                    step_idx = 0
+                    anim_start_time = time.time()
                 if event.key == pygame.K_RIGHT:
-                    move_idx = min(move_idx + 1, len(moves) - 1)
+                    step_idx = min(step_idx + 1, len(move_steps) - 1)
+                    anim_start_time = time.time()
                 if event.key == pygame.K_LEFT:
-                    move_idx = max(move_idx - 1, 0)
+                    step_idx = max(step_idx - 1, 0)
+                    anim_start_time = time.time()
 
-        # Auto-play
-        if move_idx < len(moves) - 1 and time.time() - last_move_time > 1.0:
-            move_idx += 1
-            last_move_time = time.time()
+        now = time.time()
+        state_before, move = move_steps[step_idx]
+        if move and not paused:
+            elapsed = now - anim_start_time
+            alpha = min(1.0, elapsed / ANIMATION_DURATION)
+            if alpha >= 1.0:
+                if step_idx < len(move_steps) - 1:
+                    step_idx += 1
+                    anim_start_time = time.time()
+                    alpha = 0.0
+                    state_before, move = move_steps[step_idx]
+        else:
+            alpha = 0.0
 
-        draw_board(screen, moves[move_idx])
+        draw_board(screen, state_before, move, alpha)
         
-        # Draw status
         font = pygame.font.SysFont(None, 24)
-        status = f"Move {move_idx}/{len(moves)-1}"
-        if moves[move_idx].is_solved():
-            status += " - SOLVED!"
-        img = font.render(status, True, (255, 255, 255))
-        screen.blit(img, (MARGIN, WINDOW_SIZE - MARGIN + 5))
+        status = f"Move {step_idx}/{len(move_steps)-1}"
+        if move_steps[step_idx][0].is_solved(): status += " - SOLVED!"
+        if paused: status += " (PAUSED)"
+        img = font.render(status, True, (200, 200, 200))
+        screen.blit(img, (MARGIN, W_S + 10))
 
         pygame.display.flip()
         pygame.time.Clock().tick(60)
