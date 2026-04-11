@@ -53,42 +53,24 @@ def draw_piece(screen, state, pid, pix_cj, pix_ci, scale=1.0):
     else:
         from board import PIECES
         piece = PIECES[pid]
-        
     color = COLOR_MAP.get(piece.piece_id, (200, 200, 200))
-    sc_c = C_SIZE * scale
-    sc_m = M_SIZE * scale
-    
+    sc_c, sc_m = C_SIZE * scale, M_SIZE * scale
     if piece.is_ship:
-        S_UP = 0 # Respect user manual tweak
-        # Body (Row -1)
+        S_UP = 0
         body_cj = pix_cj - (sc_m/2 + sc_c/2) + S_UP
         body_width = 4 * sc_c + sc_m
         pygame.draw.rect(screen, color, (pix_ci - body_width/2 + 4*scale, body_cj - sc_c/2 + 4*scale, body_width - 8*scale, sc_c - 8*scale), 0, int(10*scale))
-        
-        # Nose (Row +1)
-        ty = pix_cj + (sc_m/2 + sc_c/2) * 0.9 + S_UP
-        base_y = body_cj + sc_c/2
-        pygame.draw.polygon(screen, color, [(pix_ci - 18*scale, base_y), (pix_ci + 18*scale, base_y), (pix_ci, ty + sc_c/2)])
+        base_y, tip_y = body_cj + sc_c/2, pix_cj + sc_m/2 + sc_c * 0.9 + S_UP
+        pygame.draw.polygon(screen, color, [(pix_ci - 18*scale, base_y), (pix_ci + 18*scale, base_y), (pix_ci, tip_y)])
     else:
         is_big = piece.piece_id in [4, 5]
         if is_big:
             sum_dx, sum_dy = 0, 0
             for cell in piece.cells:
-                dy = 0
-                if cell.y == 1: dy = sc_m/2 + sc_c/2
-                elif cell.y == -1: dy = -(sc_m/2 + sc_c/2)
-                elif cell.y == 2: dy = sc_m/2 + sc_c + sc_c/2
-                elif cell.y == -2: dy = -(sc_m/2 + sc_c + sc_c/2)
-                dx = 0
-                if cell.x == 1: dx = sc_m/2 + sc_c/2
-                elif cell.x == -1: dx = -(sc_m/2 + sc_c/2)
-                elif cell.x == 2: dx = sc_m/2 + sc_c + sc_c/2
-                elif cell.x == -2: dx = -(sc_m/2 + sc_c + sc_c/2)
-                sum_dy += dy
-                sum_dx += dx
-            
-            avg_cy = pix_cj + sum_dy / len(piece.cells)
-            avg_cx = pix_ci + sum_dx / len(piece.cells)
+                dy = (sc_m/2 + sc_c/2) if cell.y == 1 else -(sc_m/2 + sc_c/2) if cell.y == -1 else (sc_m/2 + sc_c + sc_c/2) if cell.y == 2 else -(sc_m/2 + sc_c + sc_c/2) if cell.y == -2 else 0
+                dx = (sc_m/2 + sc_c/2) if cell.x == 1 else -(sc_m/2 + sc_c/2) if cell.x == -1 else (sc_m/2 + sc_c + sc_c/2) if cell.x == 2 else -(sc_m/2 + sc_c + sc_c/2) if cell.x == -2 else 0
+                sum_dy, sum_dx = sum_dy + dy, sum_dx + dx
+            avg_cy, avg_cx = pix_cj + sum_dy / len(piece.cells), pix_ci + sum_dx / len(piece.cells)
             radius = sc_c * 0.9
             pygame.draw.circle(screen, color, (int(avg_cx), int(avg_cy)), int(radius))
             pygame.draw.circle(screen, (min(255, color[0]+30), min(255, color[1]+30), min(255, color[2]+30)), (int(avg_cx), int(avg_cy)), int(radius), max(1, int(3*scale)))
@@ -104,29 +86,18 @@ def draw_piece(screen, state, pid, pix_cj, pix_ci, scale=1.0):
 
 def draw_board_chrome(screen):
     screen.fill(BACKGROUND)
-    curr = MARGIN
-    for size in UNIT_SIZES:
-        pygame.draw.line(screen, GRID_LINE, (MARGIN, curr), (MARGIN + sum(UNIT_SIZES), curr), 1)
-        pygame.draw.line(screen, GRID_LINE, (curr, MARGIN), (curr, MARGIN + sum(UNIT_SIZES)), 1)
-        curr += size
-    pygame.draw.line(screen, GRID_LINE, (MARGIN, curr), (MARGIN + sum(UNIT_SIZES), curr), 1)
-    pygame.draw.line(screen, GRID_LINE, (curr, MARGIN), (curr, MARGIN + sum(UNIT_SIZES)), 1)
-    for t_idx in [0, 1, 2, 3]:
-        idx = 1 + t_idx * 3 if t_idx < 3 else 10
+    for idx in [1, 4, 7, 10]:
         pos = MARGIN + sum(UNIT_SIZES[:idx])
-        pygame.draw.line(screen, TILE_BORDER, (MARGIN, pos), (MARGIN + sum(UNIT_SIZES), pos), 3)
-        pygame.draw.line(screen, TILE_BORDER, (pos, MARGIN), (pos, MARGIN + sum(UNIT_SIZES)), 3)
-    start_x = MARGIN + sum(UNIT_SIZES[:4])
-    end_x = MARGIN + sum(UNIT_SIZES[:7])
-    y_pos = MARGIN + sum(UNIT_SIZES[:10])
+        pygame.draw.line(screen, TILE_BORDER, (MARGIN, pos), (MARGIN + sum(UNIT_SIZES), pos), 2)
+        pygame.draw.line(screen, TILE_BORDER, (pos, MARGIN), (pos, MARGIN + sum(UNIT_SIZES)), 2)
+    start_x, end_x, y_pos = MARGIN + sum(UNIT_SIZES[:4]), MARGIN + sum(UNIT_SIZES[:7]), MARGIN + sum(UNIT_SIZES[:10])
     pygame.draw.rect(screen, (0, 255, 120), (start_x, y_pos, end_x - start_x, 10), 0, 5)
 
-def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
+def draw_board(screen, state: BoardState, move_info=None, alpha=0.0, level_id=None):
     draw_board_chrome(screen)
     moving_f, moving_t = move_info if move_info else (None, None)
-    piece_draw_data = [] 
+    piece_draw_data, ship_rendered = [], False
     ship_pid = next((i for i, p in enumerate(state.setup.pieces) if p.is_ship), None)
-    ship_rendered = False
     for tj in range(3):
         for ti in range(3):
             pid = state.board[tj, ti]
@@ -138,19 +109,13 @@ def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
                 target_j, target_i = moving_t
                 if target_j == 3: # Exit
                     offset = sum(UNIT_SIZES[1:4])
-                    target_cj, target_ci = cj + offset, ci
-                    target_by, target_bx = by + offset, bx
+                    target_cj, target_ci, target_by, target_bx = cj + offset, ci, by + offset, bx
                 else:
                     target_cj, target_ci = get_tile_pixel_center(target_j, target_i)
                     target_bx, target_by, _, _ = get_tile_pixel_bounds(target_j, target_i)
-                cur_cj = cj + (target_cj - cj) * alpha
-                cur_ci = ci + (target_ci - ci) * alpha
-                cur_bx = bx + (target_bx - bx) * alpha
-                cur_by = by + (target_by - by) * alpha
+                cur_cj, cur_ci, cur_bx, cur_by = cj + (target_cj - cj) * alpha, ci + (target_ci - ci) * alpha, bx + (target_bx - bx) * alpha, by + (target_by - by) * alpha
                 if pid == ship_pid: ship_rendered = True
-            else:
-                cur_cj, cur_ci = cj, ci
-                cur_bx, cur_by = bx, by
+            else: cur_cj, cur_ci, cur_bx, cur_by = cj, ci, bx, by
             pygame.draw.rect(screen, COSMOS_TILE, (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 0, 12)
             pygame.draw.rect(screen, (max(0, COSMOS_TILE[0]-10), max(0, COSMOS_TILE[1]-10), max(0, COSMOS_TILE[2]-10)), (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 2, 12)
             piece_draw_data.append((pid, cur_cj, cur_ci))
@@ -158,15 +123,16 @@ def draw_board(screen, state: BoardState, move_info=None, alpha=0.0):
         cj, ci = get_tile_pixel_center(2, 1)
         bx, by, bw, bh = get_tile_pixel_bounds(2, 1)
         offset = sum(UNIT_SIZES[1:4])
-        cur_cj, cur_ci = cj + offset, ci
-        cur_bx, cur_by = bx, by + offset
+        cur_cj, cur_ci, cur_bx, cur_by = cj + offset, ci, bx, by + offset
         pygame.draw.rect(screen, COSMOS_TILE, (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 0, 12)
         pygame.draw.rect(screen, (max(0, COSMOS_TILE[0]-10), max(0, COSMOS_TILE[1]-10), max(0, COSMOS_TILE[2]-10)), (cur_bx + 2, cur_by + 2, bw - 4, bh - 4), 2, 12)
         piece_draw_data.append((ship_pid, cur_cj, cur_ci))
-    for pid, cur_cj, cur_ci in piece_draw_data:
-        draw_piece(screen, state, pid, cur_cj, cur_ci)
+    for pid, cur_cj, cur_ci in piece_draw_data: draw_piece(screen, state, pid, cur_cj, cur_ci)
+    if level_id:
+        img = pygame.font.SysFont(None, 28, bold=True).render(f"LEVEL: {level_id}", True, (180, 190, 210))
+        screen.blit(img, (MARGIN, 5))
 
-def run_visualizer(initial_state, solution, autoplay=False, show_controls=True):
+def run_visualizer(initial_state, solution, autoplay=False, show_controls=True, level_id=None):
     pygame.init()
     W_S = sum(UNIT_SIZES) + MARGIN * 2
     screen = pygame.display.set_mode((W_S, W_S + (140 if show_controls else 40)))
@@ -178,38 +144,20 @@ def run_visualizer(initial_state, solution, autoplay=False, show_controls=True):
             move_steps.append((curr, (f, t)))
             curr = curr.do_move(f, t)
     move_steps.append((curr, None))
-    running = True
-    step_idx = 0
-    anim_start_time = time.time()
-    paused = not autoplay
-    single_step = False
+    running, step_idx, anim_start_time, paused, single_step = True, 0, time.time(), not autoplay, False
     while running:
         is_final_state = (step_idx == len(move_steps) - 1)
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key in [pygame.K_SPACE, pygame.K_RETURN] and is_final_state:
-                    running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_SPACE, pygame.K_RETURN] and is_final_state: running = False
                 elif event.key == pygame.K_SPACE:
-                    if step_idx < len(move_steps) - 1:
-                        paused = False
-                        single_step = True
-                        anim_start_time = time.time()
-                elif event.key == pygame.K_RETURN:
-                    paused = not paused
-                    single_step = False
-                    if not paused: anim_start_time = time.time()
-                elif event.key == pygame.K_RIGHT:
-                    step_idx = min(step_idx + 1, len(move_steps) - 1)
-                    paused = True
-                    single_step = False
-                elif event.key == pygame.K_LEFT:
-                    step_idx = max(step_idx - 1, 0)
-                    paused = True
-                    single_step = False
-                elif event.key == pygame.K_r:
-                    step_idx = 0
-                    anim_start_time = time.time()
+                    if paused and step_idx < len(move_steps) - 1: paused, single_step, anim_start_time = False, True, time.time()
+                elif event.key == pygame.K_RETURN: paused, single_step = not paused, False; anim_start_time = time.time()
+                elif event.key == pygame.K_RIGHT: step_idx, paused, single_step = min(step_idx + 1, len(move_steps) - 1), True, False
+                elif event.key == pygame.K_LEFT: step_idx, paused, single_step = max(step_idx - 1, 0), True, False
+                elif event.key == pygame.K_r: step_idx, anim_start_time = 0, time.time()
+                elif event.key == pygame.K_ESCAPE: running = False
         now = time.time()
         state_before, move = move_steps[step_idx]
         alpha = 0.0
@@ -217,38 +165,16 @@ def run_visualizer(initial_state, solution, autoplay=False, show_controls=True):
             elapsed = now - anim_start_time
             if elapsed >= TOTAL_STEP_TIME:
                 if step_idx < len(move_steps) - 1:
-                    step_idx += 1
-                    anim_start_time += TOTAL_STEP_TIME 
-                    state_before, move = move_steps[step_idx]
-                    elapsed = now - anim_start_time 
-                    if single_step:
-                        paused = True
-                        single_step = False
-            if move and not paused:
-                alpha = min(1.0, elapsed / ANIMATION_DURATION)
-            else:
-                alpha = 0.0
-        draw_board(screen, state_before, move, alpha)
-        font = pygame.font.SysFont(None, 24)
-        status = f"Move {step_idx}/{len(move_steps)-1}"
-        if move_steps[step_idx][0].is_solved(): status += " - SOLVED!"
-        if paused: status += " (PAUSED)"
-        img = font.render(status, True, (200, 200, 200))
+                    step_idx += 1; anim_start_time += TOTAL_STEP_TIME; state_before, move = move_steps[step_idx]; elapsed = now - anim_start_time 
+                    if single_step: paused, single_step = True, False
+            if move and not paused: alpha = min(1.0, elapsed / ANIMATION_DURATION)
+        draw_board(screen, state_before, move, alpha, level_id=level_id)
+        img = pygame.font.SysFont(None, 24).render(f"Move {step_idx}/{len(move_steps)-1}{' - SOLVED!' if move_steps[step_idx][0].is_solved() else ''}{' (PAUSED)' if paused else ''}", True, (200, 200, 200))
         screen.blit(img, (MARGIN, W_S + 10))
-        
         if show_controls:
             ctrl_font = pygame.font.SysFont(None, 20)
-            controls = [
-                "ENTER: Toggle Auto-play",
-                "SPACE: Animate next step",
-                "RIGHT/LEFT: Jump next/prev",
-                "R: Reset to start",
-                "SPACE/ENTER (on SOLVED): Exit"
-            ]
-            for i, line in enumerate(controls):
-                c_img = ctrl_font.render(line, True, (120, 130, 150))
-                screen.blit(c_img, (MARGIN, W_S + 40 + i * 18))
-
+            controls = ["ENTER: Toggle Auto-play", "SPACE: Animate next step", "RIGHT/LEFT: Jump next/prev", "R: Reset to start", "ESC: Quit"]
+            for i, line in enumerate(controls): screen.blit(ctrl_font.render(line, True, (120, 130, 150)), (MARGIN, W_S + 40 + i * 18))
         pygame.display.flip()
         pygame.time.Clock().tick(60)
     pygame.quit()
