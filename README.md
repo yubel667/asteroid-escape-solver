@@ -10,7 +10,7 @@ Currently this is considered done as all 60 main puzzles are solved.
 
 You can find all questions (in ascii format) in `questions/` folder and solutions (webp animation) in `solutions/` folder.
 
-There are 60 main levels across 4 difficulty levels.
+There are 60 main levels across 5 difficulty levels.
 
 Below is a sample solution webp for the first puzzle.
 
