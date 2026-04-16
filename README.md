@@ -12,9 +12,13 @@ You can find all questions (in ascii format) in `questions/` folder and solution
 
 There are 60 main levels across 5 difficulty levels.
 
-Below is a sample solution webp for the first puzzle.
+Below is a sample solution webp for the first puzzle to understand the rules:
 
 ![Level 01 Solution](solutions/01.webp)
+
+And this is the solution webp for the last puzzle, showing its complexity:
+
+![Level 01 Solution](solutions/60.webp)
 
 ## Rules & Useful links
 Here's the designer's webpage introduction on this game which also explains the rules:
