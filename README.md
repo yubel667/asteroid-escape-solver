@@ -4,7 +4,7 @@ An automated solver and graphical interface for the **"Asteroid Escape"** puzzle
 
 ## About the project
 
-Mostly a vibe coding project. It is a really fun game so I have the urge to write a solver for it. I implemented the board logic with unit-based collision detection, then added a BFS solver, a Pygame visualizer, and an interactive level editor.
+Mostly a vibe coding project. I implemented the board logic with unit-based collision detection, then added a BFS solver, a Pygame visualizer, and an interactive level editor.
 
 Currently this is considered done as all 60 main puzzles are solved.
 
